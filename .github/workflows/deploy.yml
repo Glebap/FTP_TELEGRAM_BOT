@@ -61,21 +61,55 @@ jobs:
           fi
 
       - name: Push the bot secrets
+        if: ${{ env.HAS_BOT_TOKEN == 'true' }}
         env:
+          HAS_BOT_TOKEN: ${{ secrets.BOT_TOKEN != '' }}
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           ADMIN_IDS: ${{ secrets.ADMIN_IDS }}
         run: |
-          # --stage keeps them from triggering their own release; the deploy
-          # below picks them up.
+          # No --stage here: staged secrets are not injected into a machine
+          # that is created by the deploy right after, and the bot then starts
+          # without BOT_TOKEN and crash-loops.
           flyctl secrets set \
             "BOT_TOKEN=$BOT_TOKEN" \
             "ADMIN_IDS=$ADMIN_IDS" \
-            --app "$FLY_APP" \
-            --stage
+            --app "$FLY_APP"
+
+      - name: Check the secrets are in place
+        run: |
+          # The bot cannot start without these, so fail loudly and early.
+          for name in BOT_TOKEN ADMIN_IDS; do
+            if ! flyctl secrets list --app "$FLY_APP" | grep -q "$name"; then
+              echo "::error::secret $name is missing — add it in the Fly app or as a repository secret"
+              exit 1
+            fi
+          done
+          flyctl secrets list --app "$FLY_APP"
 
       - name: Deploy
         # --remote-only builds the image on Fly's builder, no local Docker.
         run: flyctl deploy --app "$FLY_APP" --remote-only
+
+      - name: Verify the bot actually started
+        run: |
+          # A successful deploy only means the image runs; the bot may still
+          # exit on a bad config. Wait for the startup line in the logs.
+          for attempt in $(seq 1 12); do
+            if timeout 25 flyctl logs --app "$FLY_APP" --no-tail | tee /tmp/fly.log | grep -q 'Bot is running'; then
+              echo "the bot reported itself as running"
+              exit 0
+            fi
+            if grep -qE 'Invalid environment configuration|Fatal startup error' /tmp/fly.log; then
+              echo '::error::the bot crashed on startup, see the log above'
+              tail -40 /tmp/fly.log
+              exit 1
+            fi
+            echo "attempt $attempt: no startup line yet"
+            sleep 10
+          done
+          echo '::error::the bot never reported "Bot is running"'
+          tail -40 /tmp/fly.log
+          exit 1
 
       - name: Show the result
         if: always()
