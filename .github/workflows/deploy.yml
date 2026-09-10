@@ -75,7 +75,7 @@ jobs:
             "ADMIN_IDS=$ADMIN_IDS" \
             --app "$FLY_APP"
 
-      - name: Check the secrets are in place
+      - name: Check the secrets are in place and applied
         run: |
           # The bot cannot start without these, so fail loudly and early.
           for name in BOT_TOKEN ADMIN_IDS; do
@@ -84,6 +84,16 @@ jobs:
               exit 1
             fi
           done
+
+          # A secret can sit in the store as "Staged" and never reach the
+          # machine — that is exactly how the first deploy produced a bot
+          # crash-looping on a missing BOT_TOKEN. Setting an unchanged value
+          # creates no release, so staged secrets have to be pushed explicitly.
+          if flyctl secrets list --app "$FLY_APP" | grep -q Staged; then
+            echo 'staged secrets found, deploying them'
+            flyctl secrets deploy --app "$FLY_APP"
+          fi
+
           flyctl secrets list --app "$FLY_APP"
 
       - name: Deploy
