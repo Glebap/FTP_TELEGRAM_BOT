@@ -105,15 +105,32 @@ jobs:
           # A machine that was stopped once stays stopped across deploys: Fly
           # only updates its config and expects an HTTP request to wake it up.
           # A polling bot never gets one, so it has to be started explicitly.
-          flyctl machine list --app "$FLY_APP" --json \
-            | jq -r '.[] | select(.state != "started") | .id' \
-            | while read -r id; do
-                [ -n "$id" ] || continue
-                echo "starting machine $id"
-                flyctl machine start "$id" --app "$FLY_APP"
-              done
+          #
+          # Right after a deploy the machine can still be mid-replacement, and
+          # Fly then refuses to start it with "failed_precondition". Hence the
+          # retry loop instead of a single attempt.
+          for attempt in $(seq 1 15); do
+            states=$(flyctl machine list --app "$FLY_APP" --json | jq -r '.[].state' | sort -u | paste -sd, -)
+            echo "attempt $attempt: machine states: ${states:-none}"
 
+            if [ "$states" = 'started' ]; then
+              echo 'every machine is running'
+              exit 0
+            fi
+
+            # Skip the transient states: starting one of those is what fails.
+            for id in $(flyctl machine list --app "$FLY_APP" --json \
+              | jq -r '.[] | select(.state == "stopped" or .state == "created" or .state == "suspended") | .id'); do
+              echo "starting machine $id"
+              flyctl machine start "$id" --app "$FLY_APP" || echo "  not ready yet, will retry"
+            done
+
+            sleep 10
+          done
+
+          echo '::error::the machine never reached the started state'
           flyctl machine list --app "$FLY_APP"
+          exit 1
 
       - name: Verify the bot actually started
         run: |
