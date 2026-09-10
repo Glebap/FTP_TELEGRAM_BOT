@@ -100,6 +100,21 @@ jobs:
         # --remote-only builds the image on Fly's builder, no local Docker.
         run: flyctl deploy --app "$FLY_APP" --remote-only
 
+      - name: Make sure the machine is running
+        run: |
+          # A machine that was stopped once stays stopped across deploys: Fly
+          # only updates its config and expects an HTTP request to wake it up.
+          # A polling bot never gets one, so it has to be started explicitly.
+          flyctl machine list --app "$FLY_APP" --json \
+            | jq -r '.[] | select(.state != "started") | .id' \
+            | while read -r id; do
+                [ -n "$id" ] || continue
+                echo "starting machine $id"
+                flyctl machine start "$id" --app "$FLY_APP"
+              done
+
+          flyctl machine list --app "$FLY_APP"
+
       - name: Verify the bot actually started
         run: |
           # `flyctl logs --no-tail` returns recent history, which still holds
