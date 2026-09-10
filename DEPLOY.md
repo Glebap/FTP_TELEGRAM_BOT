@@ -29,10 +29,10 @@ iwr https://fly.io/install.ps1 -useb | iex
 fly auth login
 
 # 2. Создать приложение (имя должно быть свободным на весь Fly)
-fly apps create find-tennis-partner-bot
+fly apps create ftp-telegram-bot
 
 # 3. Создать диск под базу в том же регионе, что в fly.toml
-fly volumes create data --region otp --size 1
+fly volumes create data --region fra --size 1
 
 # 4. Положить секреты (в fly.toml их держать нельзя)
 fly secrets set BOT_TOKEN=8848474402:ВАШ_ТОКЕН ADMIN_IDS=353592796
@@ -41,10 +41,8 @@ fly secrets set BOT_TOKEN=8848474402:ВАШ_ТОКЕН ADMIN_IDS=353592796
 fly deploy
 ```
 
-Если имя `find-tennis-partner-bot` занято, придумайте другое и поправьте `app` в `fly.toml`.
-
-Регион `otp` — это Бухарест, ближайший к Кишинёву. Альтернативы: `waw` (Варшава),
-`fra` (Франкфурт). Для бота задержка почти не важна, он сам ходит к серверам Telegram.
+Регион `fra` — Франкфурт. Бухарест (`otp`) и Варшава (`waw`) закрыты Fly для новых
+ресурсов, поэтому ближайший доступный — Франкфурт. Для бота задержка почти не важна, он сам ходит к серверам Telegram.
 
 ## Проверка после деплоя
 
@@ -98,7 +96,7 @@ fly ssh sftp get /data/dev.db ./backup-$(date +%F).db
 fly ssh sftp shell
 put ./backup-2026-09-10.db /data/dev.db
 exit
-fly apps restart find-tennis-partner-bot
+fly apps restart ftp-telegram-bot
 ```
 
 ## Перенос локальной базы
@@ -110,7 +108,7 @@ fly apps restart find-tennis-partner-bot
 fly ssh sftp shell
 put ./prisma/dev.db /data/dev.db
 exit
-fly apps restart find-tennis-partner-bot
+fly apps restart ftp-telegram-bot
 ```
 
 Перед этим уберите тестовые профили: `npm run test-players clear`.
@@ -122,7 +120,7 @@ fly apps restart find-tennis-partner-bot
 | `fly logs` | Живой лог |
 | `fly logs --no-tail` | Последние строки и выход |
 | `fly status` | Состояние машины |
-| `fly apps restart find-tennis-partner-bot` | Перезапуск |
+| `fly apps restart ftp-telegram-bot` | Перезапуск |
 | `fly ssh console` | Shell внутри контейнера |
 | `fly secrets list` | Какие секреты заданы (значения не показываются) |
 | `fly scale count 1` | Убедиться, что машина одна |

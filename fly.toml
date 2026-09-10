@@ -4,10 +4,9 @@
 # [http_service] block and therefore nothing that could stop the machine
 # between requests — it just runs.
 #
-# Rename `app` before the first deploy, or let `fly launch` do it.
-
-app = "find-tennis-partner-bot"
-primary_region = "otp"
+app = "ftp-telegram-bot"
+# otp (Bucharest) and waw (Warsaw) are deprecated for new resources.
+primary_region = "fra"
 
 [build]
 

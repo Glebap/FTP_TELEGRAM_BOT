@@ -29,8 +29,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-      FLY_APP: find-tennis-partner-bot
-      FLY_REGION: otp
+      FLY_APP: ftp-telegram-bot
+      FLY_REGION: fra
     steps:
       - uses: actions/checkout@v4
 
@@ -44,7 +44,7 @@ jobs:
           if flyctl status --app "$FLY_APP" >/dev/null 2>&1; then
             echo "app $FLY_APP already exists"
           else
-            flyctl apps create "$FLY_APP" --org personal
+            flyctl apps create "$FLY_APP" --org hcernij-gmail-com
           fi
 
       - name: Create the data volume if it does not exist
