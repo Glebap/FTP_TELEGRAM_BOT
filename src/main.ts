@@ -1,4 +1,5 @@
 import { createBot, registerBotCommands } from './bot/index.js';
+import { startHealthServer } from './bot/health.js';
 import { startRateLimitCleanup } from './bot/middlewares/rateLimit.js';
 import { startScheduler } from './bot/scheduler.js';
 import { env } from './config/env.js';
@@ -17,10 +18,13 @@ async function main(): Promise<void> {
   startRateLimitCleanup();
   // Twice-a-day "new players in your city" digest.
   const scheduledTasks = startScheduler(bot.telegram);
+  // Keeps the hosting platform from stopping the machine (see health.ts).
+  const healthServer = startHealthServer();
 
   const shutdown = async (signal: string): Promise<void> => {
     logger.info({ signal }, 'Shutting down');
     for (const task of scheduledTasks) task.stop();
+    healthServer.close();
     bot.stop(signal);
     await disconnectDatabase();
     process.exit(0);

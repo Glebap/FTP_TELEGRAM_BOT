@@ -1,7 +1,14 @@
-# fly.toml app configuration file generated for ftp-telegram-bot on 2026-09-10T09:36:11Z
+# Fly.io configuration.
 #
-# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+# The bot uses long polling and needs no inbound traffic, but Fly attaches an
+# HTTP service to the app anyway and stops the machine when nothing answers it.
+# That is what killed the bot seconds after the first deploys, before it managed
+# to print a single line. So the service is declared explicitly with autostop
+# off, and src/bot/health.ts answers on it.
 #
+# Do not let "Fly Launch" regenerate this file: it writes internal_port = 3000,
+# auto_stop_machines = 'stop' and min_machines_running = 0, which puts a polling
+# bot to sleep.
 
 app = 'ftp-telegram-bot'
 primary_region = 'fra'
@@ -9,31 +16,47 @@ primary_region = 'fra'
 [build]
 
 [deploy]
+  # Telegram allows exactly one getUpdates consumer per token, so the old
+  # machine must be gone before the new one starts. A rolling deploy would
+  # briefly run both and they would fight with "409 Conflict".
   strategy = 'immediate'
 
 [env]
-  CONTACT_LIMIT_PER_DAY = '30'
-  CONTACT_LIMIT_PER_MINUTE = '5'
+  NODE_ENV = 'production'
+  LOG_LEVEL = 'info'
+  # SQLite on the mounted volume below.
   DATABASE_URL = 'file:/data/dev.db'
   DIGEST_ENABLED = 'true'
   DIGEST_TIMES = '10:00,19:00'
   DIGEST_TIMEZONE = 'Europe/Chisinau'
-  LOG_LEVEL = 'info'
-  NODE_ENV = 'production'
   SEARCH_LIMIT_PER_MINUTE = '60'
+  CONTACT_LIMIT_PER_MINUTE = '5'
+  CONTACT_LIMIT_PER_DAY = '30'
+
+# BOT_TOKEN and ADMIN_IDS are secrets, never put them here:
+#   fly secrets set BOT_TOKEN=... ADMIN_IDS=...
 
 [[mounts]]
   source = 'data'
   destination = '/data'
 
+# One machine that never sleeps: autostop would kill a polling bot.
 [http_service]
-  internal_port = 3000
+  internal_port = 8080
   force_https = true
-  auto_stop_machines = 'stop'
+  auto_stop_machines = false
   auto_start_machines = true
-  min_machines_running = 0
+  min_machines_running = 1
   processes = ['app']
 
+  [[http_service.checks]]
+    interval = '30s'
+    timeout = '5s'
+    grace_period = '20s'
+    method = 'GET'
+    path = '/health'
+
+# Never scale this app above one machine while it uses polling.
 [[vm]]
   size = 'shared-cpu-1x'
   memory = '512mb'
