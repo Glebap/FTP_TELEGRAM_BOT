@@ -1,0 +1,42 @@
+# Fly.io configuration.
+#
+# The bot uses long polling, so it needs no inbound traffic: there is no
+# [http_service] block and therefore nothing that could stop the machine
+# between requests — it just runs.
+#
+# Rename `app` before the first deploy, or let `fly launch` do it.
+
+app = "find-tennis-partner-bot"
+primary_region = "otp"
+
+[build]
+
+[env]
+  NODE_ENV = "production"
+  LOG_LEVEL = "info"
+  # SQLite on the mounted volume below.
+  DATABASE_URL = "file:/data/dev.db"
+  DIGEST_ENABLED = "true"
+  DIGEST_TIMES = "10:00,19:00"
+  DIGEST_TIMEZONE = "Europe/Chisinau"
+  SEARCH_LIMIT_PER_MINUTE = "60"
+  CONTACT_LIMIT_PER_MINUTE = "5"
+  CONTACT_LIMIT_PER_DAY = "30"
+
+# BOT_TOKEN and ADMIN_IDS are secrets, never put them here:
+#   fly secrets set BOT_TOKEN=... ADMIN_IDS=...
+
+[mounts]
+  source = "data"
+  destination = "/data"
+
+[deploy]
+  # Telegram allows exactly one getUpdates consumer per token, so the old
+  # machine must be gone before the new one starts. A rolling deploy would
+  # briefly run both and they would fight with "409 Conflict".
+  strategy = "immediate"
+
+# One machine, always: never scale this app above 1 while it uses polling.
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

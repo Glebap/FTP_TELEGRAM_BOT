@@ -1,0 +1,85 @@
+# Deploys the bot to Fly.io from GitHub's runners.
+#
+# This is the supported path on machines where flyctl cannot run (Windows with
+# Smart App Control blocks the unsigned flyctl binary, and building the image
+# needs Docker). Everything here runs on GitHub's Linux runner instead.
+#
+# Repository secrets required:
+#   FLY_API_TOKEN — Fly organization token with full access to the org
+#   BOT_TOKEN     — token from @BotFather
+#   ADMIN_IDS     — comma-separated Telegram ids allowed to run /admin
+name: Deploy to Fly.io
+
+on:
+  push:
+    branches: [main, master]
+    # Documentation-only changes do not need a redeploy.
+    paths-ignore:
+      - '**.md'
+  workflow_dispatch:
+
+concurrency:
+  # Two deploys at once would leave two bots polling the same token.
+  group: fly-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Provision and deploy
+    runs-on: ubuntu-latest
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      FLY_APP: find-tennis-partner-bot
+      FLY_REGION: otp
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Check the token works
+        run: flyctl auth whoami
+
+      - name: Create the app if it does not exist
+        run: |
+          if flyctl status --app "$FLY_APP" >/dev/null 2>&1; then
+            echo "app $FLY_APP already exists"
+          else
+            flyctl apps create "$FLY_APP" --org personal
+          fi
+
+      - name: Create the data volume if it does not exist
+        run: |
+          # SQLite lives on this volume, so it must survive redeploys.
+          if flyctl volumes list --app "$FLY_APP" | grep -q '\bdata\b'; then
+            echo "volume data already exists"
+          else
+            flyctl volumes create data \
+              --app "$FLY_APP" \
+              --region "$FLY_REGION" \
+              --size 1 \
+              --yes
+          fi
+
+      - name: Push the bot secrets
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          ADMIN_IDS: ${{ secrets.ADMIN_IDS }}
+        run: |
+          # --stage keeps them from triggering their own release; the deploy
+          # below picks them up.
+          flyctl secrets set \
+            "BOT_TOKEN=$BOT_TOKEN" \
+            "ADMIN_IDS=$ADMIN_IDS" \
+            --app "$FLY_APP" \
+            --stage
+
+      - name: Deploy
+        # --remote-only builds the image on Fly's builder, no local Docker.
+        run: flyctl deploy --app "$FLY_APP" --remote-only
+
+      - name: Show the result
+        if: always()
+        run: |
+          flyctl status --app "$FLY_APP" || true
+          echo '--- last log lines ---'
+          timeout 30 flyctl logs --app "$FLY_APP" --no-tail || true

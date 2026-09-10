@@ -1,0 +1,192 @@
+// Schema is intentionally written to be portable between SQLite (local dev)
+// and PostgreSQL (production): no native enums, no arrays, no JSON columns.
+// To move to Postgres: change `provider` below to "postgresql", point
+// DATABASE_URL at the server and run `npm run db:migrate`.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id               Int      @id @default(autoincrement())
+  telegramId       BigInt   @unique
+  telegramUsername String?
+  /// Name from Telegram, refreshed on every update.
+  firstName        String?
+  /// Name the user chose for their profile; falls back to firstName.
+  displayName      String?
+  age              Int?
+  countryCode      String?
+  countryName      String?
+  city             String?
+  /// GeoNames id of the city, so two spellings never split one city.
+  cityGeonameId    Int?
+  photoFileId      String?
+  about            String?
+  /// Profile visible in other users' search results.
+  isActive         Boolean  @default(true)
+  /// Registration finished (profile confirmed).
+  isRegistered     Boolean  @default(false)
+  isBlocked        Boolean  @default(false)
+  /// Twice-a-day digest about new players in the same city.
+  notifyNewPlayers Boolean  @default(true)
+  /// When the last digest was sent; the next one only counts players newer than this.
+  lastDigestAt     DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  sports           UserSport[]
+  quizAttempts     QuizAttempt[]
+  viewsMade        ProfileView[] @relation("viewer")
+  viewsReceived    ProfileView[] @relation("viewed")
+  contactsMade     Contact[]     @relation("contactFrom")
+  contactsReceived Contact[]     @relation("contactTo")
+  events           AppEvent[]
+
+  @@index([isActive, isRegistered])
+  @@index([city])
+  @@index([cityGeonameId])
+  @@index([countryCode])
+}
+
+model Sport {
+  id        Int      @id @default(autoincrement())
+  name      String
+  slug      String   @unique
+  emoji     String   @default("")
+  /// Level scale identifier, e.g. "ntrp". Sport-specific config lives in src/config/sports.ts.
+  levelType String   @default("custom")
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  userSports     UserSport[]
+  quizQuestions  QuizQuestion[]
+  quizAttempts   QuizAttempt[]
+  profileViews   ProfileView[]
+  contacts       Contact[]
+}
+
+model UserSport {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  sportId   Int
+  /// Numeric level on the sport's own scale (NTRP for tennis: 2.5 .. 4.5).
+  level     Float
+  /// How the level was obtained: "self" | "quiz".
+  levelSource String @default("self")
+  isPrimary Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sport Sport @relation(fields: [sportId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, sportId])
+  @@index([sportId, level])
+}
+
+model QuizQuestion {
+  id        Int      @id @default(autoincrement())
+  sportId   Int
+  /// Stable key from the config module, used to re-seed without duplicates.
+  key       String
+  question  String
+  sortOrder Int      @default(0)
+  isActive  Boolean  @default(true)
+
+  sport   Sport        @relation(fields: [sportId], references: [id], onDelete: Cascade)
+  answers QuizAnswer[]
+
+  @@unique([sportId, key])
+  @@index([sportId, sortOrder])
+}
+
+model QuizAnswer {
+  id         Int    @id @default(autoincrement())
+  questionId Int
+  answer     String
+  /// 1..5, see src/config/sports.ts for the score -> level mapping.
+  score      Float
+  sortOrder  Int    @default(0)
+
+  question QuizQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([questionId, sortOrder])
+}
+
+model QuizAttempt {
+  id              Int      @id @default(autoincrement())
+  userId          Int
+  sportId         Int
+  totalScore      Float
+  averageScore    Float
+  calculatedLevel Float
+  /// Raw answers as "questionKey:score" pairs, kept for future re-scoring.
+  answersRaw      String   @default("")
+  createdAt       DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sport Sport @relation(fields: [sportId], references: [id], onDelete: Cascade)
+
+  @@index([userId, sportId])
+}
+
+model ProfileView {
+  id           Int      @id @default(autoincrement())
+  viewerId     Int
+  viewedUserId Int
+  sportId      Int
+  /// "view" | "next" | "like" | "message"
+  action       String   @default("view")
+  createdAt    DateTime @default(now())
+
+  viewer     User  @relation("viewer", fields: [viewerId], references: [id], onDelete: Cascade)
+  viewedUser User  @relation("viewed", fields: [viewedUserId], references: [id], onDelete: Cascade)
+  sport      Sport @relation(fields: [sportId], references: [id], onDelete: Cascade)
+
+  @@unique([viewerId, viewedUserId, sportId])
+  @@index([viewerId, createdAt])
+}
+
+/// A recorded intent to contact another player. With the t.me hand-off flow
+/// this is what powers "My contacts" and the anti-spam limits.
+model Contact {
+  id         Int      @id @default(autoincrement())
+  fromUserId Int
+  toUserId   Int
+  sportId    Int
+  createdAt  DateTime @default(now())
+
+  fromUser User  @relation("contactFrom", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toUser   User  @relation("contactTo", fields: [toUserId], references: [id], onDelete: Cascade)
+  sport    Sport @relation(fields: [sportId], references: [id], onDelete: Cascade)
+
+  @@unique([fromUserId, toUserId, sportId])
+  @@index([fromUserId, createdAt])
+}
+
+/// Lightweight counters for /admin ("searches", "registrations", ...).
+model AppEvent {
+  id        Int      @id @default(autoincrement())
+  type      String
+  userId    Int?
+  meta      String?
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([type, createdAt])
+}
+
+/// FSM state persisted so an interrupted registration survives a bot restart.
+model Session {
+  key       String   @id
+  data      String
+  updatedAt DateTime @updatedAt
+}

@@ -1,0 +1,51 @@
+{
+  "name": "sport-partner-bot",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Telegram bot for finding sport partners (tennis first, multi-sport ready)",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "start": "node dist/main.js",
+    "build": "tsc -p tsconfig.build.json && node scripts/copy-data.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --import tsx --test tests/scoring.test.ts tests/quiz.test.ts tests/geo.test.ts",
+    "test:integration": "node --import tsx --test tests/matching.integration.test.ts",
+    "test:flow": "node --import tsx --test tests/registration.flow.test.ts",
+    "test:all": "npm test && npm run test:integration && npm run test:digest && npm run test:flow",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
+    "db:seed": "tsx src/db/seed.ts",
+    "db:studio": "prisma studio",
+    "setup": "prisma generate && prisma db push && tsx src/db/seed.ts",
+    "build:geo": "tsx scripts/build-geo-data.ts",
+    "test:geo": "node --import tsx --test tests/geo.test.ts",
+    "test:digest": "node --import tsx --test tests/digest.test.ts",
+    "test-players": "tsx scripts/test-players.ts"
+  },
+  "prisma": {
+    "seed": "tsx src/db/seed.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.22.0",
+    "dotenv": "^16.4.7",
+    "node-cron": "^4.6.0",
+    "pino": "^9.5.0",
+    "pino-pretty": "^13.0.0",
+    "prisma": "^5.22.0",
+    "telegraf": "^4.16.3",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/node-cron": "^3.0.11",
+    "i18n-iso-countries": "^7.14.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}
