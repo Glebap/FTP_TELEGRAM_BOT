@@ -1,41 +1,39 @@
-# Fly.io configuration.
+# fly.toml app configuration file generated for ftp-telegram-bot on 2026-09-10T09:36:11Z
 #
-# The bot uses long polling, so it needs no inbound traffic: there is no
-# [http_service] block and therefore nothing that could stop the machine
-# between requests — it just runs.
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
-app = "ftp-telegram-bot"
-# otp (Bucharest) and waw (Warsaw) are deprecated for new resources.
-primary_region = "fra"
+
+app = 'ftp-telegram-bot'
+primary_region = 'fra'
 
 [build]
 
-[env]
-  NODE_ENV = "production"
-  LOG_LEVEL = "info"
-  # SQLite on the mounted volume below.
-  DATABASE_URL = "file:/data/dev.db"
-  DIGEST_ENABLED = "true"
-  DIGEST_TIMES = "10:00,19:00"
-  DIGEST_TIMEZONE = "Europe/Chisinau"
-  SEARCH_LIMIT_PER_MINUTE = "60"
-  CONTACT_LIMIT_PER_MINUTE = "5"
-  CONTACT_LIMIT_PER_DAY = "30"
-
-# BOT_TOKEN and ADMIN_IDS are secrets, never put them here:
-#   fly secrets set BOT_TOKEN=... ADMIN_IDS=...
-
-[mounts]
-  source = "data"
-  destination = "/data"
-
 [deploy]
-  # Telegram allows exactly one getUpdates consumer per token, so the old
-  # machine must be gone before the new one starts. A rolling deploy would
-  # briefly run both and they would fight with "409 Conflict".
-  strategy = "immediate"
+  strategy = 'immediate'
 
-# One machine, always: never scale this app above 1 while it uses polling.
+[env]
+  CONTACT_LIMIT_PER_DAY = '30'
+  CONTACT_LIMIT_PER_MINUTE = '5'
+  DATABASE_URL = 'file:/data/dev.db'
+  DIGEST_ENABLED = 'true'
+  DIGEST_TIMES = '10:00,19:00'
+  DIGEST_TIMEZONE = 'Europe/Chisinau'
+  LOG_LEVEL = 'info'
+  NODE_ENV = 'production'
+  SEARCH_LIMIT_PER_MINUTE = '60'
+
+[[mounts]]
+  source = 'data'
+  destination = '/data'
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ['app']
+
 [[vm]]
-  size = "shared-cpu-1x"
-  memory = "512mb"
+  size = 'shared-cpu-1x'
+  memory = '512mb'
