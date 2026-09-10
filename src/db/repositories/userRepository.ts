@@ -57,6 +57,10 @@ export const userRepository = {
     return prisma.userSport.findUnique({ where: { userId_sportId: { userId, sportId } } });
   },
 
+  async countRegistered(): Promise<number> {
+    return prisma.user.count({ where: { isRegistered: true } });
+  },
+
   async removeUserSport(userId: number, sportId: number): Promise<void> {
     await prisma.userSport.deleteMany({ where: { userId, sportId } });
   },

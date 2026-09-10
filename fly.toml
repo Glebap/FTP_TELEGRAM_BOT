@@ -26,6 +26,7 @@ primary_region = 'fra'
   LOG_LEVEL = 'info'
   # SQLite on the mounted volume below.
   DATABASE_URL = 'file:/data/dev.db'
+  ADMIN_NOTIFY = 'true'
   DIGEST_ENABLED = 'true'
   DIGEST_TIMES = '10:00,19:00'
   DIGEST_TIMEZONE = 'Europe/Chisinau'

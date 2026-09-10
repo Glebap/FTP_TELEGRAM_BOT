@@ -21,6 +21,8 @@ const databaseUrl = `file:${join(workDir, 'test.db').replace(/\\/g, '/')}`;
 process.env.DATABASE_URL = databaseUrl;
 process.env.BOT_TOKEN = 'test-token-0000000000';
 process.env.NODE_ENV = 'test';
+// One admin who is not a participant of the flows below.
+process.env.ADMIN_IDS = '9001';
 process.env.LOG_LEVEL = process.env.LOG_LEVEL ?? 'silent';
 
 interface ApiCall {
@@ -247,7 +249,19 @@ describe('bot flow', () => {
     assert.ok(buttonsInLastMessage().includes('reg:confirm'));
 
     await send(callbackUpdate(chatId, 'Alex', 'reg:confirm'));
+    // The user still sees their own screen last; the admin notice goes before.
     assert.match(lastOutgoing(), /Профиль готов/);
+
+    const notice = calls.find(
+      (call) => call.method === 'sendMessage' && call.payload.chat_id === 9001,
+    );
+    assert.ok(notice, 'the admin should be told about a new player');
+    const noticeText = String(notice.payload.text);
+    assert.match(noticeText, /Новый игрок/);
+    assert.match(noticeText, /Alex, 24/);
+    assert.match(noticeText, /Chisinau/);
+    assert.match(noticeText, /NTRP 3\.5/);
+    assert.match(noticeText, /t\.me\/user5001/);
 
     const stored = await prisma.user.findUnique({
       where: { telegramId: BigInt(chatId) },

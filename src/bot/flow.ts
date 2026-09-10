@@ -6,6 +6,7 @@ import {
 } from '../config/sports.js';
 import { userService } from '../services/userService.js';
 import { geoService } from '../services/geoService.js';
+import { notifyAdminsAboutRegistration } from './adminNotify.js';
 import {
   aboutKeyboard,
   ageEditKeyboard,
@@ -255,6 +256,9 @@ export async function finishRegistration(ctx: BotContext): Promise<void> {
     levelSource: draft.levelSource ?? 'self',
   });
   ctx.dbUser = user;
+
+  // Before the menu, so the user's own screen stays the last thing they see.
+  await notifyAdminsAboutRegistration(ctx.telegram, user);
 
   resetFlow(ctx.session);
   await showMainMenu(

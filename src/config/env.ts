@@ -18,6 +18,11 @@ const schema = z.object({
   DATABASE_URL: z.string().min(1),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
+  /** Ping every id in ADMIN_IDS when someone finishes registration. */
+  ADMIN_NOTIFY: z
+    .string()
+    .default('true')
+    .transform((value) => value.toLowerCase() !== 'false'),
   DIGEST_ENABLED: z
     .string()
     .default('true')
